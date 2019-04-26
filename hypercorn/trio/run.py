@@ -7,6 +7,7 @@ import trio
 from .h2 import H2Server
 from .h11 import H11Server
 from .lifespan import Lifespan
+from .metrics import collect_metrics, log_metrics
 from .wsproto import WebsocketServer
 from ..asgi.run import H2CProtocolRequired, H2ProtocolAssumed, WebsocketProtocolRequired
 from ..config import Config, Sockets
@@ -21,7 +22,7 @@ from ..utils import (
 )
 
 
-async def serve_stream(app: ASGIFramework, config: Config, stream: trio.abc.Stream) -> None:
+async def serve_stream(app: ASGIFramework, config: Config, metrics_send_channel, stream: trio.abc.Stream) -> None:
     if config.ssl_enabled:
         try:
             with trio.fail_after(config.ssl_handshake_timeout):
@@ -37,7 +38,7 @@ async def serve_stream(app: ASGIFramework, config: Config, stream: trio.abc.Stre
     else:
         protocol = H11Server(app, config, stream)  # type: ignore
     try:
-        await protocol.handle_connection()
+        await protocol.handle_connection(metrics_send_channel.clone())
     except WebsocketProtocolRequired as error:
         protocol = WebsocketServer(  # type: ignore
             app, config, stream, upgrade_request=error.request
@@ -68,36 +69,42 @@ async def worker_serve(
 
         try:
             async with trio.open_nursery() as nursery:
-                if config.use_reloader:
-                    nursery.start_soon(observe_changes, trio.sleep)
+                metrics_send_channel, metrics_receive_channel = trio.open_memory_channel(100)
+                metrics = {'total_requests':0}
+                async with metrics_receive_channel, metrics_send_channel:
+                    nursery.start_soon(collect_metrics, metrics_receive_channel.clone(), metrics)
+                    nursery.start_soon(log_metrics, metrics)
 
-                if shutdown_event is not None:
-                    nursery.start_soon(check_shutdown, shutdown_event, trio.sleep)
+                    if config.use_reloader:
+                        nursery.start_soon(observe_changes, trio.sleep)
 
-                if sockets is None:
-                    sockets = config.create_sockets()
-                    for sock in sockets.secure_sockets:
-                        sock.listen(config.backlog)
-                    for sock in sockets.insecure_sockets:
-                        sock.listen(config.backlog)
+                    if shutdown_event is not None:
+                        nursery.start_soon(check_shutdown, shutdown_event, trio.sleep)
 
-                ssl_context = config.create_ssl_context()
-                listeners = [
-                    trio.ssl.SSLListener(
-                        trio.SocketListener(trio.socket.from_stdlib_socket(sock)),
-                        ssl_context,
-                        https_compatible=True,
-                    )
-                    for sock in sockets.secure_sockets
-                ]
-                listeners.extend(
-                    [
-                        trio.SocketListener(trio.socket.from_stdlib_socket(sock))
-                        for sock in sockets.insecure_sockets
+                    if sockets is None:
+                        sockets = config.create_sockets()
+                        for sock in sockets.secure_sockets:
+                            sock.listen(config.backlog)
+                        for sock in sockets.insecure_sockets:
+                            sock.listen(config.backlog)
+
+                    ssl_context = config.create_ssl_context()
+                    listeners = [
+                        trio.ssl.SSLListener(
+                            trio.SocketListener(trio.socket.from_stdlib_socket(sock)),
+                            ssl_context,
+                            https_compatible=True,
+                        )
+                        for sock in sockets.secure_sockets
                     ]
-                )
-                task_status.started()
-                await trio.serve_listeners(partial(serve_stream, app, config), listeners)
+                    listeners.extend(
+                        [
+                            trio.SocketListener(trio.socket.from_stdlib_socket(sock))
+                            for sock in sockets.insecure_sockets
+                        ]
+                    )
+                    task_status.started()
+                    await trio.serve_listeners(partial(serve_stream, app, config, metrics_send_channel), listeners)
 
         except MustReloadException:
             reload_ = True

@@ -30,20 +30,22 @@ class H11Server(HTTPServer, H11Mixin):
         self.state = ASGIHTTPState.REQUEST
         self.app_send_channel, self.app_receive_channel = trio.open_memory_channel(10)
 
-    async def handle_connection(self) -> None:
+    async def handle_connection(self, metrics_send_channel) -> None:
         try:
             # Loop over the requests in order of receipt (either
             # pipelined or due to keep-alive).
-            while True:
-                with trio.fail_after(self.config.keep_alive_timeout):
-                    request = await self.read_request()
-                self.raise_if_upgrade(request, self.connection.trailing_data[0])
+            async with metrics_send_channel:
+                while True:
+                    with trio.fail_after(self.config.keep_alive_timeout):
+                        request = await self.read_request()
+                    self.raise_if_upgrade(request, self.connection.trailing_data[0])
 
-                async with trio.open_nursery() as nursery:
-                    nursery.start_soon(self.handle_request, request)
-                    await self.read_body()
+                    async with trio.open_nursery() as nursery:
+                        nursery.start_soon(metrics_send_channel.send, 1)
+                        nursery.start_soon(self.handle_request, request)
+                        await self.read_body()
 
-                await self.recycle_or_close()
+                    await self.recycle_or_close()
         except (trio.BrokenResourceError, trio.ClosedResourceError):
             await self.asgi_put({"type": "http.disconnect"})
             await self.aclose()
