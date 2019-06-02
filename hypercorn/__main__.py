@@ -94,6 +94,12 @@ def main(sys_args: Optional[List[str]] = None) -> None:
         action="append",
     )
     parser.add_argument(
+            "--metrics-period", 
+            type=int, 
+            help='metrics period to calculate statistics and update metrics.txt', 
+            default=sentinel)
+    parser.add_argument("--metrics-tmppath", help="enable metrics. /tmp path to use for metrics.txt", default=sentinel)
+    parser.add_argument(
         "-p", "--pid", help="Location to write the PID (Program ID) to.", default=sentinel
     )
     parser.add_argument(
@@ -159,6 +165,10 @@ def main(sys_args: Optional[List[str]] = None) -> None:
         config.keep_alive_timeout = args.keep_alive
     if args.keyfile is not sentinel:
         config.keyfile = args.keyfile
+    if args.metrics_period is not sentinel:
+        config.metrics_period = args.metrics_period
+    if args.metrics_tmppath is not sentinel:
+        config.metrics_tmppath = args.metrics_tmppath
     if args.pid is not sentinel:
         config.pid_path = args.pid
     if args.root_path is not sentinel:

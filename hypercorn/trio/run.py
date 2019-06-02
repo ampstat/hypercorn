@@ -70,10 +70,12 @@ async def worker_serve(
         try:
             async with trio.open_nursery() as nursery:
                 metrics_send_channel, metrics_receive_channel = trio.open_memory_channel(100)
-                metrics = {'total_requests':0}
+                # request_span is d[(conn_id, req_id)] = start_counter, end_counter
+                # request_duration is list of durations (without ids)
+                metrics = {'total_requests':0, 'request_duration': [], 'request_span': {} }
                 async with metrics_receive_channel, metrics_send_channel:
                     nursery.start_soon(collect_metrics, metrics_receive_channel.clone(), metrics)
-                    nursery.start_soon(log_metrics, metrics)
+                    nursery.start_soon(log_metrics, config, metrics)
 
                     if config.use_reloader:
                         nursery.start_soon(observe_changes, trio.sleep)
@@ -121,6 +123,8 @@ async def worker_serve(
 def trio_worker(
     config: Config, sockets: Optional[Sockets] = None, shutdown_event: Optional[EventType] = None
 ) -> None:
+    if config.metrics_tmppath:
+        quartmetrics.run_proc(config.metrics_tmppath, '127.0.0.1:5002')
     if sockets is not None:
         for sock in sockets.secure_sockets:
             sock.listen(config.backlog)

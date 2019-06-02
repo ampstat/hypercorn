@@ -35,15 +35,23 @@ class H11Server(HTTPServer, H11Mixin):
             # Loop over the requests in order of receipt (either
             # pipelined or due to keep-alive).
             async with metrics_send_channel:
+                req_id = 0
                 while True:
                     with trio.fail_after(self.config.keep_alive_timeout):
                         request = await self.read_request()
                     self.raise_if_upgrade(request, self.connection.trailing_data[0])
 
                     async with trio.open_nursery() as nursery:
-                        nursery.start_soon(metrics_send_channel.send, 1)
+                        conn_id = id(self.connection)
+                        req_id += 1
+                        start_time = time.perf_counter()
+                        data = conn_id, req_id, 'start', start_time
+                        nursery.start_soon(metrics_send_channel.send, data)
                         nursery.start_soon(self.handle_request, request)
                         await self.read_body()
+                        end_time = time.perf_counter()
+                        data = conn_id, req_id, 'end', end_time
+                        await metrics_send_channel.send(data)
 
                     await self.recycle_or_close()
         except (trio.BrokenResourceError, trio.ClosedResourceError):

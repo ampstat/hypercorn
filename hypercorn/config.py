@@ -53,6 +53,8 @@ class Config:
     h2_max_inbound_frame_size = 2 ** 14 * OCTETS
     keep_alive_timeout = 5 * SECONDS
     keyfile: Optional[str] = None
+    metrics_period: int = 1
+    metrics_tmppath: Optional[str] = None
     pid_path: Optional[str] = None
     root_path = ""
     shutdown_timeout = 60 * SECONDS
