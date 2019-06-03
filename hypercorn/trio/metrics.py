@@ -48,11 +48,10 @@ async def log_metrics(config, metrics):
         fp = Path(config.metrics_tmppath) / 'quartmetrics' / 'metrics.txt'
         with fp.open('w') as f:
             f.write('reqps ' + str(end - start) + ' # req/s')
-            f.write('request_duration_mean ' + str(mean) + ' # request_duration_mean period ' + str(config['metrics_period']) + 's\n')
-            f.write('request_duration_median ' + str(median) + ' # request_duration_median period ' + str(config['metrics_period']) + 's\n')
-            f.write('request_duration_stdev ' + str(stdev) + ' # request_duration_stdev period ' + str(config['metrics_period']) + 's\n')
-            f.write('request_duration_q5 ' + str(q5) + ' # request_duration_q5 period ' + str(config['metrics_period']) + 's\n')
-            f.write('request_duration_q95 ' + str(q95) + ' # request_duration_q95 period ' + str(config['metrics_period']) + 's\n')
-            f.write('request_duration_q99 ' + str(q99) + ' # request_duration_q99 period ' + str(config['metrics_period']) + 's\n')
-            f.write('metrics_period ' + str(config['metrics_period']) + ' # metrics_period secs\n')
-            f.write('request_cancelled_total ' + str(metrics['request_cancelled_total']) + ' # request_cancelled_total')
+            f.write('request_duration_mean ' + str(mean) + ' # request_duration_mean period ' + str(config.metrics_period) + 's\n')
+            f.write('request_duration_median ' + str(median) + ' # request_duration_median period ' + str(config.metrics_period) + 's\n')
+            f.write('request_duration_stdev ' + str(stdev) + ' # request_duration_stdev period ' + str(config.metrics_period) + 's\n')
+            f.write('request_duration_q5 ' + str(q5) + ' # request_duration_q5 period ' + str(config.metrics_period) + 's\n')
+            f.write('request_duration_q95 ' + str(q95) + ' # request_duration_q95 period ' + str(config.metrics_period) + 's\n')
+            f.write('request_duration_q99 ' + str(q99) + ' # request_duration_q99 period ' + str(config.metrics_period) + 's\n')
+            f.write('metrics_period ' + str(config.metrics_period) + ' # metrics_period secs\n')

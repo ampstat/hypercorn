@@ -3,6 +3,7 @@ from multiprocessing.synchronize import Event as EventType
 from typing import Optional
 
 import trio
+import quartmetrics
 
 from .h2 import H2Server
 from .h11 import H11Server
