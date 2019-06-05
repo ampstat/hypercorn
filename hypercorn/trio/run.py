@@ -125,11 +125,18 @@ def trio_worker(
     config: Config, sockets: Optional[Sockets] = None, shutdown_event: Optional[EventType] = None
 ) -> None:
     if config.metrics_tmppath:
-        quartmetrics.run_proc(config.metrics_tmppath, '127.0.0.1:5002')
-    if sockets is not None:
-        for sock in sockets.secure_sockets:
-            sock.listen(config.backlog)
-        for sock in sockets.insecure_sockets:
-            sock.listen(config.backlog)
-    app = load_application(config.application_path)
-    trio.run(partial(worker_serve, app, config, sockets=sockets, shutdown_event=shutdown_event))
+        proc = quartmetrics.run_proc(config.metrics_tmppath, '127.0.0.1:5002')
+    else:
+        proc = None
+    try:
+        if sockets is not None:
+            for sock in sockets.secure_sockets:
+                sock.listen(config.backlog)
+            for sock in sockets.insecure_sockets:
+                sock.listen(config.backlog)
+        app = load_application(config.application_path)
+        trio.run(partial(worker_serve, app, config, sockets=sockets, shutdown_event=shutdown_event))
+    finally:
+        if proc:
+            proc.terminate()
+            proc.wait(timeout=3)
