@@ -125,7 +125,7 @@ def trio_worker(
     config: Config, sockets: Optional[Sockets] = None, shutdown_event: Optional[EventType] = None
 ) -> None:
     if config.metrics_tmppath:
-        proc = quartmetrics.run_proc(config.metrics_tmppath, '127.0.0.1:5002')
+        proc = quartmetrics.run_proc(config.metrics_tmppath, '127.0.0.1:5001')
     else:
         proc = None
     try:
