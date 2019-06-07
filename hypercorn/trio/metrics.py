@@ -5,19 +5,22 @@ import numpy
 import trio
 
 
-async def collect_metrics(receive_channel, metrics):
+async def collect_metrics(config, receive_channel, metrics):
     async with receive_channel:
         async for data in receive_channel:
-            if not config.metric_tmppath:
+            if not config.metrics_tmppath:
                 continue
-            metrics['total_requests'] += 1
             conn_id, req_id, start_end, counter = data
             if start_end == 'start':
-                metrics['request_span'][(conn_id, req_id)].append(counter)
-            else:
-                start, end = metrics['request_span'].pop(conn_id, req_id)
+                metrics['total_requests'] += 1
+                metrics['request_start'][(conn_id, req_id)] = counter
+            elif start_end == 'end':
+                start = metrics['request_start'].pop(conn_id, req_id)
+                end = counter
                 duration = end - start
                 metrics['request_duration'].append(duration)
+            else:
+                raise Exception('Unrecognised collect_metrics message')
 
 
 async def log_metrics(config, metrics):
@@ -27,6 +30,7 @@ async def log_metrics(config, metrics):
         start = metrics['total_requests']
         await trio.sleep(config.metrics_period)
         end = metrics['total_requests']
+        reqps = end - start
 
         request_duration = metrics['request_duration']
 
@@ -37,8 +41,11 @@ async def log_metrics(config, metrics):
             request_duration.clear()
             mean = statistics.mean(li)
             median = statistics.median(li)
-            stdev = statistics.stdev(li)
-            q5, q95, q99 = numpy.quantile(li, [0.5,0.95,0.99])
+            if len(li) > 1:
+                stdev = statistics.stdev(li)
+                q5, q95, q99 = numpy.quantile(li, [0.5,0.95,0.99])
+            else:
+                stdev, q5, q95, q99 = 0, 0, 0, 0
         else:
             mean = 0
             median = 0
@@ -47,11 +54,15 @@ async def log_metrics(config, metrics):
 
         fp = Path(config.metrics_tmppath) / 'quartmetrics' / 'metrics.txt'
         with fp.open('w') as f:
-            f.write('reqps ' + str(end - start) + ' # req/s')
-            f.write('request_duration_mean ' + str(mean) + ' # request_duration_mean period ' + str(config.metrics_period) + 's\n')
-            f.write('request_duration_median ' + str(median) + ' # request_duration_median period ' + str(config.metrics_period) + 's\n')
-            f.write('request_duration_stdev ' + str(stdev) + ' # request_duration_stdev period ' + str(config.metrics_period) + 's\n')
-            f.write('request_duration_q5 ' + str(q5) + ' # request_duration_q5 period ' + str(config.metrics_period) + 's\n')
-            f.write('request_duration_q95 ' + str(q95) + ' # request_duration_q95 period ' + str(config.metrics_period) + 's\n')
-            f.write('request_duration_q99 ' + str(q99) + ' # request_duration_q99 period ' + str(config.metrics_period) + 's\n')
-            f.write('metrics_period ' + str(config.metrics_period) + ' # metrics_period secs\n')
+            log_metric_value(f, 'reqps', reqps, 'float', 'requests per second')
+            log_metric_value(f, 'request_duration_mean', mean, 'float', 'requests per second')
+            log_metric_value(f, 'request_duration_median', median, 'float', 'requests per second')
+            log_metric_value(f, 'request_duration_stdev', stdev, 'float', 'requests per second')
+            log_metric_value(f, 'request_duration_q5', q5, 'float', 'requests per second')
+            log_metric_value(f, 'request_duration_q95', q95, 'float', 'requests per second')
+            log_metric_value(f, 'request_duration_q99', q99, 'float', 'requests per second')
+            log_metric_value(f, 'metrics_period', config.metrics_period, 'int', 'seconds')
+
+def log_metric_value(f, name, value, type_str, unit):
+    f.write(f'# NAME {name} TYPE {type_str} UNIT {unit}\n')
+    f.write(f'{name} {value}\n')

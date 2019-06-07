@@ -73,9 +73,9 @@ async def worker_serve(
                 metrics_send_channel, metrics_receive_channel = trio.open_memory_channel(100)
                 # request_span is d[(conn_id, req_id)] = start_counter, end_counter
                 # request_duration is list of durations (without ids)
-                metrics = {'total_requests':0, 'request_duration': [], 'request_span': {} }
+                metrics = {'total_requests':0, 'request_duration': [], 'request_start': {} }
                 async with metrics_receive_channel, metrics_send_channel:
-                    nursery.start_soon(collect_metrics, metrics_receive_channel.clone(), metrics)
+                    nursery.start_soon(collect_metrics, config, metrics_receive_channel.clone(), metrics)
                     nursery.start_soon(log_metrics, config, metrics)
 
                     if config.use_reloader:
