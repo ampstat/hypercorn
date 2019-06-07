@@ -45,12 +45,12 @@ class H11Server(HTTPServer, H11Mixin):
                     async with trio.open_nursery() as nursery:
                         conn_id = id(self.connection)
                         req_id += 1
-                        start_time = time.perf_counter()
+                        start_time = trio.current_time()
                         data = conn_id, req_id, 'start', start_time
-                        nursery.start_soon(metrics_send_channel.send, data)
+                        await metrics_send_channel.send(data)
                         nursery.start_soon(self.handle_request, request)
                         await self.read_body()
-                        end_time = time.perf_counter()
+                        end_time = trio.current_time()
                         data = conn_id, req_id, 'end', end_time
                         await metrics_send_channel.send(data)
 

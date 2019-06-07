@@ -15,7 +15,7 @@ async def collect_metrics(config, receive_channel, metrics):
                 metrics['total_requests'] += 1
                 metrics['request_start'][(conn_id, req_id)] = counter
             elif start_end == 'end':
-                start = metrics['request_start'].pop(conn_id, req_id)
+                start = metrics['request_start'].pop((conn_id, req_id))
                 end = counter
                 duration = end - start
                 metrics['request_duration'].append(duration)
